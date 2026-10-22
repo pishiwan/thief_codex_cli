@@ -43,5 +43,8 @@ line_up = ["Up"]
 book_start = ["Home"]
 # 跳到小说末尾。
 book_end = ["End"]
+# 输入原文行号并跳转（实际换行计数，空行也算；终端宽度不影响行号）。
+# 输入时 Enter 确认，Esc 取消并留在阅读页；数字和退格优先用于编辑。
+goto_line = ["Ctrl+g"]
 # 返回真实 Codex，不中断正在执行的任务。
 back = ["Escape", "Ctrl+c"]

@@ -16,6 +16,13 @@ from .config import label
 from .io import read_json, send_action, write_json
 
 
+def source_line_starts(text: str) -> list[int]:
+    """Index normalized source lines; a final newline only terminates its line."""
+    if not text:
+        return []
+    return [0] + [i + 1 for i, char in enumerate(text) if char == "\n" and i + 1 < len(text)]
+
+
 def wrap_text(text: str, width: int) -> tuple[list[int], list[str]]:
     """Keep source offsets so reflow doesn't lose the current reading position."""
     offsets, lines = [], []
@@ -37,8 +44,9 @@ def wrap_text(text: str, width: int) -> tuple[list[int], list[str]]:
             start, cells, buf = index, 0, []
         buf.append(char)
         cells += count
-    offsets.append(start)
-    lines.append("".join(buf))
+    if start < len(text) or not lines:
+        offsets.append(start)
+        lines.append("".join(buf))
     return offsets, lines
 
 
@@ -70,10 +78,11 @@ def key_name(key) -> str | None:
         special = {
             " ": "Space",
             "\x1b": "Escape",
-            "\n": "Enter",
+            "\n": "C-j",
             "\r": "Enter",
             "\t": "Tab",
             "\x7f": "BSpace",
+            "\x08": "BSpace",
         }
         if key in special:
             return special[key]
@@ -95,6 +104,7 @@ def key_name(key) -> str | None:
         curses.KEY_BACKSPACE: "BSpace",
         curses.KEY_DC: "DC",
         curses.KEY_IC: "IC",
+        curses.KEY_ENTER: "Enter",
     }.get(key)
 
 
@@ -107,6 +117,7 @@ class Reader:
             .replace("\r\n", "\n")
             .replace("\r", "\n")
         )
+        self.line_starts = source_line_starts(self.text)
         digest = hashlib.sha256(str(self.book.resolve()).encode()).hexdigest()
         self.progress = Path(config["reader"]["state_dir"]) / "books" / (digest + ".json")
         saved = read_json(self.progress, {})
@@ -116,7 +127,97 @@ class Reader:
         self.size = None
         self.last_save, self.dirty = 0.0, False
         self.warning = ""
+        self.jump_digits: str | None = None
+        self.jump_error = ""
         self.keys = {key: action for action, keys in config["keys"].items() for key in keys}
+
+    def reflow(self, width: int):
+        self.starts, self.rows = wrap_text(self.text, width)
+        self.top = max(0, bisect.bisect_right(self.starts, self.offset) - 1)
+
+    def position_label(self) -> str:
+        total = len(self.line_starts)
+        if not total:
+            return "原文行 0 / 0"
+        line = bisect.bisect_right(self.line_starts, self.starts[self.top]) - 1
+        first_row = bisect.bisect_left(self.starts, self.line_starts[line])
+        next_row = (
+            bisect.bisect_left(self.starts, self.line_starts[line + 1])
+            if line + 1 < total
+            else len(self.rows)
+        )
+        label = f"原文行 {line + 1} / {total}"
+        if next_row - first_row > 1:
+            label += f" · 本行第 {self.top - first_row + 1} / {next_row - first_row} 屏幕行"
+        return label
+
+    def begin_jump(self):
+        if not self.line_starts:
+            self.warning = "空文件，无法跳转"
+            return
+        self.jump_digits, self.jump_error = "", ""
+
+    def cancel_jump(self):
+        self.jump_digits, self.jump_error = None, ""
+
+    def jump_to_line(self, number: int) -> bool:
+        if not 1 <= number <= len(self.line_starts):
+            return False
+        self.offset = self.line_starts[number - 1]
+        self.top = bisect.bisect_left(self.starts, self.offset)
+        self.dirty = True
+        self.save()
+        return True
+
+    def input_action(self, name: str | None) -> str | None:
+        # Preserve an explicit Ctrl+J binding; otherwise accept LF as Enter too.
+        if name == "C-j" and name not in self.keys:
+            name = "Enter"
+        action = self.keys.get(name)
+        if self.jump_digits is None or action in {"toggle", "auto_read"}:
+            return action
+        # Modal editing takes precedence over reader bindings, including Enter/digits.
+        if name is not None and len(name) == 1 and name in "0123456789":
+            self.jump_digits += name
+            self.jump_error = ""
+        elif name == "BSpace":
+            self.jump_digits = self.jump_digits[:-1]
+            self.jump_error = ""
+        elif name == "Escape":
+            self.cancel_jump()
+        elif name in {"Enter", "C-j"}:
+            digits = self.jump_digits.lstrip("0") or "0"
+            total = len(self.line_starts)
+            if not self.jump_digits:
+                self.jump_error = "请输入原文行号"
+            elif len(digits) > len(str(total)) or not self.jump_to_line(int(digits)):
+                self.jump_error = f"行号超出范围，请输入 1–{total}"
+            else:
+                self.cancel_jump()
+        elif action == "back":
+            return action
+        return None
+
+    def read_state(self, previous: dict) -> dict:
+        if not self.runtime:
+            return previous
+        state = read_json(self.runtime / "state.json", previous)
+        hidden = state.get("view") != "reader"
+        if state.get("reader_hide_count", 0) != previous.get("reader_hide_count", 0) or (
+            hidden and previous.get("view") == "reader"
+        ):
+            self.cancel_jump()
+            self.save()
+        if hidden:
+            self.cancel_jump()
+        return state
+
+    def jump_prompt(self, width: int) -> str:
+        prefix = f"跳转到原文行（1–{len(self.line_starts)}）："
+        if wcswidth(prefix) + 5 > width:
+            prefix = "原文行："
+        available = max(1, width - wcswidth(prefix) - 1)
+        return prefix + (self.jump_digits or "")[-available:] + "▏"
 
     def save(self):
         try:
@@ -145,6 +246,7 @@ class Reader:
         import json
 
         curses.raw()  # Ctrl+C belongs to the reader, not the background Codex.
+        curses.nonl()  # Keep Enter (CR) distinct from a configured Ctrl+J (LF).
         screen.keypad(True)
         screen.timeout(100)
         curses.set_escdelay(25)
@@ -163,20 +265,14 @@ class Reader:
             "auto_read": self.config["reader"]["auto_read"],
             "cwd": str(Path.cwd()),
         }
-        previous_view = None
         while True:
             height, width = screen.getmaxyx()
             margin = min(self.config["reader"]["margin"], max(0, (width - 12) // 2))
             page_size = max(1, height - 10)
             if self.size != (height, width):
-                self.starts, self.rows = wrap_text(self.text, max(2, width - margin * 2 - 1))
-                self.top = max(0, bisect.bisect_right(self.starts, self.offset) - 1)
+                self.reflow(max(2, width - margin * 2 - 1))
                 self.size = (height, width)
-            if self.runtime:
-                state = read_json(self.runtime / "state.json", state)
-                if previous_view == "reader" and state.get("view") != "reader":
-                    self.save()
-                previous_view = state.get("view")
+            state = self.read_state(state)
             actions = []
             if incoming:
                 while True:
@@ -186,6 +282,7 @@ class Reader:
                         break
                     except (KeyError, ValueError):
                         continue
+            name = None
             try:
                 key = screen.get_wch()
                 name = key_name(key)
@@ -197,15 +294,23 @@ class Reader:
                     except curses.error:
                         pass
                     screen.timeout(100)
-                if name in self.keys:
-                    actions.append(self.keys[name])
             except curses.error:
                 pass
+            # Reading a key can block while the controller switches panes.
+            state = self.read_state(state)
+            if not self.runtime or state.get("view") == "reader":
+                action = self.input_action(name)
+                if action:
+                    actions.append(action)
             for action in actions:
                 if action == "save":
                     self.save()
                     continue
+                if self.runtime and state.get("view") != "reader":
+                    continue
                 if action in {"back", "toggle", "auto_read"}:
+                    if action != "auto_read":
+                        self.cancel_jump()
                     self.save()
                     if self.runtime:
                         try:
@@ -216,6 +321,11 @@ class Reader:
                         return
                     else:
                         state["auto_read"] = not state["auto_read"]
+                    continue
+                if action == "goto_line":
+                    self.begin_jump()
+                    continue
+                if self.jump_digits is not None:
                     continue
                 moves = {
                     "next_page": page_size,
@@ -253,9 +363,22 @@ class Reader:
             }.get(status, status)
             toggle = label(self.config["keys"]["toggle"])
             put(screen, height - 6, margin, "• " + status_text, accent)
+            if self.jump_digits is not None:
+                put(
+                    screen,
+                    height - 5,
+                    margin,
+                    self.jump_error or f"Enter 确认 · Esc 取消 · {toggle} 返回 Codex",
+                    accent if self.jump_error else dim,
+                )
             put(screen, height - 4, margin, "─" * (width - margin * 2 - 1), dim)
             put(screen, height - 3, margin, "› ", curses.A_BOLD)
-            put(screen, height - 3, margin + 3, self.warning or f"{toggle} 返回 Codex 输入", dim)
+            composer = self.warning or (
+                f"{toggle} 返回 Codex 输入 · {label(self.config['keys']['goto_line'])} 跳转行"
+            )
+            if self.jump_digits is not None:
+                composer = self.jump_prompt(width - margin * 2 - 4)
+            put(screen, height - 3, margin + 3, composer, dim)
             put(screen, height - 2, margin, "─" * (width - margin * 2 - 1), dim)
             end = self.starts[min(self.top + page_size, len(self.starts) - 1)]
             percent = (
@@ -274,7 +397,8 @@ class Reader:
                 screen,
                 height - 1,
                 margin,
-                f"{model} · {Path(state.get('cwd') or '.').name}  {percent}% · {paging} · {auto}",
+                f"{self.position_label()} · {percent}% · {paging} · {auto}"
+                f" · {model} · {Path(state.get('cwd') or '.').name}",
                 dim,
             )
             screen.refresh()

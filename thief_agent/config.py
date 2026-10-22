@@ -33,6 +33,7 @@ DEFAULTS = {
         "line_up": ["Up"],
         "book_start": ["Home"],
         "book_end": ["End"],
+        "goto_line": ["Ctrl+g"],
         "back": ["Escape", "Ctrl+c"],
     },
 }

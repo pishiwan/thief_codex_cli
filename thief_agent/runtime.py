@@ -166,22 +166,12 @@ class Runtime:
         self.tmux("select-pane", "-t", self.panes["codex"])
         self.tmux("resize-pane", "-Z", "-t", self.panes["codex"])
         for action, keys in self.config["keys"].items():
+            # Reader keys go straight to curses so modal input can take precedence.
+            if action not in {"toggle", "auto_read"}:
+                continue
             command = self.internal_command("_action", self.directory, action)
             for key in keys:
-                if action in {"toggle", "auto_read"}:
-                    self.tmux("bind-key", "-n", key, "run-shell", "-b", command)
-                else:
-                    condition = "#{==:#{pane_id}," + self.panes["reader"] + "}"
-                    self.tmux(
-                        "bind-key",
-                        "-n",
-                        key,
-                        "if-shell",
-                        "-F",
-                        condition,
-                        shlex.join(["run-shell", "-b", command]),
-                        shlex.join(["send-keys", key]),
-                    )
+                self.tmux("bind-key", "-n", key, "run-shell", "-b", command)
         if self.demo:
             codex = self.internal_command("_demo", self.directory)
         else:
@@ -233,6 +223,7 @@ class Runtime:
 
     async def run(self):
         code, previous, last_check = 0, None, 0.0
+        reader_hide_count = 0
         loop = asyncio.get_running_loop()
         for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
             loop.add_signal_handler(sig, lambda: setattr(self, "stopping", True))
@@ -243,6 +234,10 @@ class Runtime:
                 if not self.reader_alive:
                     self.state.view, self.state.deadline = "codex", None
                 snapshot = self.state.snapshot()
+                if previous and previous["view"] == "reader" and snapshot["view"] != "reader":
+                    reader_hide_count += 1
+                # A counter preserves hide events even if the reader misses a quick toggle.
+                snapshot["reader_hide_count"] = reader_hide_count
                 if snapshot != previous:
                     write_json(self.directory / "state.json", snapshot)
                     if previous and snapshot["view"] != previous["view"]:
