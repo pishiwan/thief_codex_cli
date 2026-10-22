@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "thief-agent"
+version = "0.1.0"
+description = "Read local novels in a Codex-style terminal while Codex works"
+requires-python = ">=3.10"
+dependencies = ["tornado>=6.1,<7", "wcwidth>=0.2", "tomli>=2; python_version < '3.11'"]
+
+[project.scripts]
+thief-agent = "thief_agent.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["thief_agent*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
