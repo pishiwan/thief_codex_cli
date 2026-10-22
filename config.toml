@@ -1,0 +1,25 @@
+# 相对路径以本配置文件所在目录为基准。修改后重新启动生效。
+[reader]
+book = ""
+encoding = "utf-8"
+auto_read = true
+delay = 1.5
+margin = 2
+# 留空时使用 ~/.local/state/thief-agent（遵循 XDG_STATE_HOME）。
+state_dir = ""
+
+[codex]
+command = ["codex"]
+
+[keys]
+# 支持 F1-F12、Ctrl+r / C-r、Alt+r / M-r、单字符及下列特殊键。
+# 同一按键不能分配给多个动作；[] 表示禁用可选动作。
+toggle = ["F8"]
+auto_read = ["F9"]
+next_page = ["PgDn", "Space"]
+previous_page = ["PgUp"]
+line_down = ["Down"]
+line_up = ["Up"]
+book_start = ["Home"]
+book_end = ["End"]
+back = ["Escape", "Ctrl+c"]

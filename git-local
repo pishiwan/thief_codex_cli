@@ -1,5 +1,0 @@
-#!/bin/sh
-# This workspace reserves .git as read-only; keep local history next to it.
-repo_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-exec git --git-dir="$repo_dir/.git-local" --work-tree="$repo_dir" "$@"
-
