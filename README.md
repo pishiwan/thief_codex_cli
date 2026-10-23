@@ -4,7 +4,7 @@
 
 ## 安装（Ubuntu / macOS）
 
-发布产物为 `thief_agent-0.1.0-py3-none-any.whl`，同一个 wheel 可安装在 Ubuntu 和 macOS 上，无需克隆源码。需要 **Python 3.10+、tmux 3.2+ 和已安装的 Codex CLI**。正常使用前，请先确认 `codex` 能在当前终端启动并完成登录；已验证的 Codex 版本与平台见下文“自动切换与兼容性”。
+发布产物为 `thief_agent-0.1.1-py3-none-any.whl`，同一个 wheel 可安装在 Ubuntu 和 macOS 上，无需克隆源码。需要 **Python 3.10+、tmux 3.2+ 和已安装的 Codex CLI**。正常使用前，请先确认 `codex` 能在当前终端启动并完成登录；已验证的 Codex 版本与平台见下文“自动切换与兼容性”。
 
 ### 1. 安装系统依赖
 
@@ -36,11 +36,11 @@ codex --version
 ```bash
 python3 -m venv ~/.venvs/thief-agent
 source ~/.venvs/thief-agent/bin/activate
-python -m pip install ./thief_agent-0.1.0-py3-none-any.whl
+python -m pip install ./thief_agent-0.1.1-py3-none-any.whl
 thief-agent --version
 ```
 
-如果已经使用 Python 3.10+ 的虚拟环境，直接执行 `python -m pip install ./thief_agent-0.1.0-py3-none-any.whl` 即可。安装其他版本时，将文件名替换为下载的实际名称。
+如果已经使用 Python 3.10+ 的虚拟环境，直接执行 `python -m pip install ./thief_agent-0.1.1-py3-none-any.whl` 即可。安装其他版本时，将文件名替换为下载的实际名称。
 
 pip 会联网安装 Tornado、wcwidth，以及 Python 3.10 所需的 tomli。wheel 不包含 Python、tmux 或 Codex，因此单独下载 wheel 不等于完整的离线安装包。本项目目前通过 GitHub Release 分发，尚未发布到 PyPI。
 
@@ -53,7 +53,7 @@ pip 会联网安装 Tornado、wcwidth，以及 Python 3.10 所需的 tomli。whe
 也可以用已安装的 pipx 安装下载的 wheel，让命令在所有终端可用：
 
 ```bash
-pipx install ./thief_agent-0.1.0-py3-none-any.whl
+pipx install ./thief_agent-0.1.1-py3-none-any.whl
 pipx ensurepath
 # 重新打开终端后使用 thief-agent
 ```
@@ -80,19 +80,28 @@ thief-agent --config /path/to/config.toml --book ~/books/novel.txt
 
 阅读页的输入框支持输入跳转行号。要输入追加指令，请切回真正的 Codex。小说由阅读器本地读取，不会加入模型上下文。
 
-### 保存默认配置
+### 首次启动自动创建配置
 
-安装 wheel 后不需要源码目录。创建 `~/.config/thief-agent/config.toml`，填入：
+安装 wheel 后，首次运行 `thief-agent` 会自动创建 `~/.config/thief-agent/config.toml`，并在终端显示文件位置。文件包含完整中文注释、小说路径、编码、自动阅读参数、Codex 命令和全部快捷键，无需手动创建目录或配置文件。
+
+首次启动时可以直接指定小说：
+
+```bash
+thief-agent --book ~/books/novel.txt
+```
+
+创建配置时会将这次传入的小说绝对路径写入 `reader.book`，同时保存显式传入的 `--encoding`、`--no-auto-reader`。以后直接执行 `thief-agent` 即可继续阅读。
+
+如果首次启动没有传入 `--book`，程序会先生成完整配置，再提示设置 `reader.book`。打开生成的文件，将该项改为自己的 TXT 路径即可，例如：
 
 ```toml
 [reader]
 book = "~/books/novel.txt"
-
-[keys]
-toggle = ["F8"]
 ```
 
-之后直接执行 `thief-agent` 即可。设置了 `XDG_CONFIG_HOME` 时，配置路径改为 `$XDG_CONFIG_HOME/thief-agent/config.toml`。未填写的配置项使用内置默认值，可运行 `thief-agent --check-config` 检查当前有效配置。
+已有配置不会被覆盖或自动改写；后续启动的命令行参数只对本次运行生效。可直接修改文件里的 `[keys]` 等配置，重新启动后生效。
+
+设置了 `XDG_CONFIG_HOME` 时，文件创建在 `$XDG_CONFIG_HOME/thief-agent/config.toml`。显式指定 `--config`，或从源码运行且已有源码配置时，继续使用对应文件，不额外创建用户配置。`--help`、`--version`、`--check-config` 不创建文件；`--check-config` 可检查当前有效配置。
 
 ## 快捷键全部可配置
 
@@ -154,8 +163,9 @@ command = ["codex"]
 ```
 
 - 参数文件选择顺序：`--config` → `~/.config/thief-agent/config.toml` → 源码目录的 `config.toml`（从源码运行时）→ 内置默认值。用户配置目录遵循 `XDG_CONFIG_HOME`。
+- 未指定 `--config` 且没有现有配置时，正常启动会先把完整默认配置写入用户配置目录，再读取该文件。
 - 文件中的相对路径以参数文件所在目录为准；命令行 `--book` 以当前工作目录为准。
-- `--book`、`--encoding`、`--no-auto-reader` 覆盖文件中的对应参数。
+- `--book`、`--encoding`、`--no-auto-reader` 覆盖文件中的对应参数；仅首次自动创建配置时会保存这些参数，已有文件不改写。
 - 任务开始后默认等待 1.5 秒再切换，快速结束的任务不会闪屏。
 - F9 只修改本次运行的自动阅读开关；默认值始终由参数文件决定。
 - 阅读进度按 TXT 的绝对路径保存到 `~/.local/state/thief-agent/books/`，遵循 `XDG_STATE_HOME`。也可用 `state_dir` 指定目录。

@@ -1,0 +1,50 @@
+# 相对路径以本配置文件所在目录为基准。修改后重新启动生效。
+[reader]
+# 小说 TXT 路径；留空时需在启动命令中通过 --book 指定。
+book = ""
+# 文件编码；常用 utf-8，部分中文 TXT 可改为 gb18030。
+encoding = "utf-8"
+# 是否在 Codex 开始任务后自动进入小说；false 时仍可用快捷键手动切换。
+auto_read = true
+# 自动进入小说前等待的秒数，范围 0～60；短于此时间的任务不会切换页面。
+delay = 1.5
+# 正文左右留白的终端列数，范围 0～20。
+margin = 2
+# 阅读进度和运行日志的保存目录。
+# 留空时使用 ~/.local/state/thief-agent；设置了 XDG_STATE_HOME 时优先遵循该变量。
+state_dir = ""
+
+[codex]
+# Codex 启动命令；若不在 PATH 中，可填写绝对路径，如 ["/opt/bin/codex"]。
+command = ["codex"]
+
+[keys]
+# 按键直接生效，无需 tmux 前缀；每个动作可绑定多个按键。
+# 支持 F1-F12、Ctrl+r / C-r、Alt+r / M-r、单个 ASCII 字符及下列特殊键。
+# 同一按键不能分配给多个动作；[] 表示禁用该动作，但 toggle 至少保留一个按键。
+# 例如 toggle = ["Ctrl+r"] 可将页面切换键改为 Ctrl+R。
+
+# 两个页面均有效：在真实 Codex 和小说之间切换。
+toggle = ["F8"]
+# 两个页面均有效：开关本次运行的自动阅读，不修改文件中的默认值。
+# 只影响任务开始后的自动进入；任务结束后仍会自动返回 Codex。
+auto_read = ["F9"]
+
+# 以下按键仅在小说页生效，Codex 页保留原有按键行为。
+# 下一页；Space 表示空格键。
+next_page = ["PgDn", "Space"]
+# 上一页。
+previous_page = ["PgUp"]
+# 向下滚动一行。
+line_down = ["Down"]
+# 向上滚动一行。
+line_up = ["Up"]
+# 跳到小说开头。
+book_start = ["Home"]
+# 跳到小说末尾。
+book_end = ["End"]
+# 输入原文行号并跳转（实际换行计数，空行也算；终端宽度不影响行号）。
+# 输入时 Enter 确认，Esc 取消并留在阅读页；数字和退格优先用于编辑。
+goto_line = ["Ctrl+g"]
+# 返回真实 Codex，不中断正在执行的任务。
+back = ["Escape", "Ctrl+c"]

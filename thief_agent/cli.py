@@ -11,7 +11,7 @@ import sys
 from pathlib import Path
 
 from . import __version__
-from .config import default_config_path, load_config
+from .config import create_user_config, default_config_path, load_config, user_config_path
 
 
 def main(argv=None):
@@ -36,20 +36,26 @@ def main(argv=None):
     parser.add_argument("--headless", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
     try:
-        config_path = args.config or default_config_path()
-        config = load_config(config_path)
+        reader_overrides = {}
         if args.book:
-            config["reader"]["book"] = str(args.book.expanduser().resolve())
+            reader_overrides["book"] = str(args.book.expanduser().resolve())
         if args.encoding:
-            config["reader"]["encoding"] = args.encoding
+            reader_overrides["encoding"] = args.encoding
         if args.no_auto_reader:
-            config["reader"]["auto_read"] = False
+            reader_overrides["auto_read"] = False
+        config_path = args.config or default_config_path()
+        if config_path is None and not args.check_config:
+            config_path = user_config_path()
+            if create_user_config(config_path, reader_overrides):
+                print(f"已创建配置文件：{config_path}", file=sys.stderr)
+        config = load_config(config_path)
+        config["reader"].update(reader_overrides)
         codecs.lookup(config["reader"]["encoding"])
         if args.check_config:
             print(json.dumps(config, indent=2, ensure_ascii=False))
             return 0
         if not config["reader"]["book"]:
-            raise ValueError("请用 --book 指定 TXT，或在参数文件设置 reader.book")
+            raise ValueError(f"请在 {config_path} 中设置 reader.book，或用 --book 指定 TXT")
         book = Path(config["reader"]["book"])
         if not book.is_file():
             raise ValueError(f"TXT 文件不存在：{book}")

@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import copy
+import json
 import math
 import os
 import re
+from importlib.resources import files
 from pathlib import Path
 
 try:
@@ -14,29 +16,8 @@ except ImportError:
     import tomli as tomllib
 
 
-DEFAULTS = {
-    "reader": {
-        "book": "",
-        "encoding": "utf-8",
-        "auto_read": True,
-        "delay": 1.5,
-        "margin": 2,
-        "state_dir": "",
-    },
-    "codex": {"command": ["codex"]},
-    "keys": {
-        "toggle": ["F8"],
-        "auto_read": ["F9"],
-        "next_page": ["PgDn", "Space"],
-        "previous_page": ["PgUp"],
-        "line_down": ["Down"],
-        "line_up": ["Up"],
-        "book_start": ["Home"],
-        "book_end": ["End"],
-        "goto_line": ["Ctrl+g"],
-        "back": ["Escape", "Ctrl+c"],
-    },
-}
+DEFAULT_TEMPLATE = files(__package__).joinpath("default_config.toml").read_text(encoding="utf-8")
+DEFAULTS = tomllib.loads(DEFAULT_TEMPLATE)
 
 
 def normalize_key(key: str) -> str:
@@ -137,11 +118,37 @@ def load_config(path: Path | None) -> dict:
     return result
 
 
-def default_config_path() -> Path | None:
-    user = (
+def user_config_path() -> Path:
+    return (
         Path(os.environ.get("XDG_CONFIG_HOME", "~/.config")).expanduser()
         / "thief-agent/config.toml"
     )
+
+
+def create_user_config(path: Path, reader_overrides: dict) -> bool:
+    """Write the commented defaults once; never overwrite an existing configuration."""
+    content = DEFAULT_TEMPLATE
+    for name, value in reader_overrides.items():
+        # JSON strings/booleans are valid TOML values; TOML also requires DEL to be escaped.
+        encoded = json.dumps(value, ensure_ascii=False).replace("\x7f", "\\u007f")
+        content = re.sub(
+            rf"^{name} = .*?$",
+            lambda _, replacement=f"{name} = {encoded}": replacement,
+            content,
+            count=1,
+            flags=re.MULTILINE,
+        )
+    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        with path.open("x", encoding="utf-8") as handle:
+            handle.write(content)
+    except FileExistsError:
+        return False
+    return True
+
+
+def default_config_path() -> Path | None:
+    user = user_config_path()
     source = Path(__file__).resolve().parent.parent / "config.toml"
     return next((path for path in (user, source) if path.is_file()), None)
 

@@ -67,8 +67,26 @@ jobs:
           "$RUNNER_TEMP/thief-install/bin/thief-agent" --check-config
           "$RUNNER_TEMP/thief-install/bin/python" -m thief_agent --version
           "$RUNNER_TEMP/thief-install/bin/python" - <<'PY'
+          import os
+          import subprocess
+          import sys
+          import tempfile
+          from pathlib import Path
+          from thief_agent.config import DEFAULTS, tomllib
           from thief_agent.reader import Reader
           from thief_agent.runtime import Runtime
+
+          with tempfile.TemporaryDirectory() as directory:
+              env = {**os.environ, "XDG_CONFIG_HOME": directory}
+              command = [sys.executable, "-m", "thief_agent"]
+              first = subprocess.run(command, env=env, capture_output=True, text=True)
+              path = Path(directory) / "thief-agent/config.toml"
+              assert first.returncode == 1 and "reader.book" in first.stderr
+              assert tomllib.loads(path.read_text(encoding="utf-8")) == DEFAULTS
+              custom = '[keys]\ntoggle = ["Ctrl+r"]\n'
+              path.write_text(custom, encoding="utf-8")
+              subprocess.run(command, env=env, capture_output=True, check=False)
+              assert path.read_text(encoding="utf-8") == custom
           PY
 
   release:
@@ -97,6 +115,8 @@ jobs:
           ```
 
           Ubuntu / macOS 使用同一个 wheel。需自行安装 tmux 3.2+ 和 Codex CLI；pip 会安装 Python 依赖。完整安装和使用说明见仓库 README。
+
+          首次启动自动生成带完整中文注释的用户配置，包含小说路径、阅读参数和全部快捷键；已有配置不会被覆盖。
 
           wheel 安装已通过 Ubuntu / macOS 检查；macOS 的真实 Codex 交互尚需实机验证。
           EOF
