@@ -14,10 +14,10 @@ python -m build
 python -m twine check dist/*
 ```
 
-0.1.2 版本的产物：
+0.1.3 版本的产物：
 
-- `dist/thief_agent-0.1.2-py3-none-any.whl`：用户下载后通过 pip 安装；Ubuntu 与 macOS 共用。
-- `dist/thief_agent-0.1.2.tar.gz`：源码分发包。
+- `dist/thief_agent-0.1.3-py3-none-any.whl`：用户下载后通过 pip 安装；Ubuntu 与 macOS 共用。
+- `dist/thief_agent-0.1.3.tar.gz`：源码分发包。
 
 wheel 包含本项目的 Python 代码和带完整注释的默认配置模板；安装时 pip 解析并安装依赖。Python、tmux、Codex CLI 仍由用户安装。
 
@@ -30,11 +30,11 @@ wheel 包含本项目的 Python 代码和带完整注释的默认配置模板；
 3. 检查通过后，可在 Actions 中下载 `python-distributions` 产物。
 4. 推送与包版本一致的 `v*` tag 时，检查通过后自动创建 GitHub Release，上传 wheel、sdist 和 `SHA256SUMS`。
 
-发布 0.1.2：
+发布 0.1.3：
 
 ```bash
-git tag v0.1.2
-git push origin v0.1.2
+git tag v0.1.3
+git push origin v0.1.3
 ```
 
 发布前应先提交并推送版本对应的代码。后续版本需更新 `thief_agent/__init__.py` 和 README 中的下载文件名，再创建新 tag。不要移动已发布的版本 tag。
