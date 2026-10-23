@@ -1,2 +1,2 @@
-include DESIGN.md RELEASING.md config.toml thief-agent
+include DESIGN.md RELEASING.md config.toml thief-agent example.png
 recursive-include examples *.txt

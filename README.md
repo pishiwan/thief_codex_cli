@@ -6,7 +6,7 @@
 
 ## 安装（Ubuntu / macOS）
 
-发布产物为 `thief_agent-0.1.1-py3-none-any.whl`。需要 **Python 3.10+、tmux 3.2+ 和已安装的 Codex CLI**。正常使用前，请先确认 `codex` 能在当前终端启动并完成登录
+发布产物为 `thief_agent-0.1.2-py3-none-any.whl`。需要 **Python 3.10+、tmux 3.2+ 和已安装的 Codex CLI**。正常使用前，请先确认 `codex` 能在当前终端启动并完成登录
 
 ### 1. 安装系统依赖
 
@@ -30,7 +30,7 @@ brew install python tmux
 ```bash
 python3 -m venv ~/.venvs/thief-agent
 source ~/.venvs/thief-agent/bin/activate
-python -m pip install ./thief_agent-0.1.1-py3-none-any.whl
+python -m pip install ./thief_agent-0.1.2-py3-none-any.whl
 thief-agent --version
 ```
 
