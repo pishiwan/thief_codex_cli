@@ -10,6 +10,7 @@ import shutil
 import sys
 from pathlib import Path
 
+from . import __version__
 from .config import default_config_path, load_config
 
 
@@ -22,6 +23,7 @@ def main(argv=None):
         separator = argv.index("--")
         argv, codex_args = argv[:separator], argv[separator + 1 :]
     parser = argparse.ArgumentParser(description="等待 Codex 工作时，在仿 Codex 界面阅读本地 TXT")
+    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     parser.add_argument("--config", type=Path, help="TOML 参数文件（快捷键、阅读设置）")
     parser.add_argument("--book", type=Path, help="本地 TXT 文件")
     parser.add_argument("--encoding", help="TXT 编码，例如 utf-8 或 gb18030")

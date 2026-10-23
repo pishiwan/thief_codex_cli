@@ -4,13 +4,32 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "thief-agent"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Read local novels in a Codex-style terminal while Codex works"
+readme = "README.md"
 requires-python = ">=3.10"
 dependencies = ["tornado>=6.1,<7", "wcwidth>=0.2", "tomli>=2; python_version < '3.11'"]
+keywords = ["codex", "cli", "terminal", "reader", "tmux"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console :: Curses",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS :: MacOS X",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Utilities",
+]
+
+[project.urls]
+Homepage = "https://github.com/pishiwan/thief_codex_cli"
+Repository = "https://github.com/pishiwan/thief_codex_cli"
+Issues = "https://github.com/pishiwan/thief_codex_cli/issues"
 
 [project.scripts]
 thief-agent = "thief_agent.cli:main"
+
+[tool.setuptools.dynamic]
+version = {attr = "thief_agent.__version__"}
 
 [tool.setuptools.packages.find]
 include = ["thief_agent*"]

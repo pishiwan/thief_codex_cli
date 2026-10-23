@@ -249,7 +249,9 @@ class Reader:
         curses.nonl()  # Keep Enter (CR) distinct from a configured Ctrl+J (LF).
         screen.keypad(True)
         screen.timeout(100)
-        curses.set_escdelay(25)
+        # Some macOS Python builds use curses without set_escdelay.
+        if hasattr(curses, "set_escdelay"):
+            curses.set_escdelay(25)
         try:
             curses.curs_set(0)
         except curses.error:

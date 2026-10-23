@@ -1,0 +1,107 @@
+name: Build and release wheel
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - name: Check release version
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          python - <<'PY'
+          import os
+          from thief_agent import __version__
+          assert os.environ["GITHUB_REF_NAME"] == f"v{__version__}", "Tag must match package version"
+          PY
+      - name: Build and check distributions
+        run: |
+          python -m pip install build twine
+          python -m build
+          python -m twine check dist/*
+          cd dist
+          sha256sum *.whl *.tar.gz > SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: python-distributions
+          path: dist/
+          if-no-files-found: error
+
+  install:
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, macos-14]
+        python: ["3.10", "3.13"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: python-distributions
+          path: dist
+      - name: Install wheel without a source checkout
+        shell: bash
+        run: |
+          python -m venv "$RUNNER_TEMP/thief-install"
+          "$RUNNER_TEMP/thief-install/bin/python" -m pip install dist/*.whl
+          cd "$RUNNER_TEMP"
+          "$RUNNER_TEMP/thief-install/bin/python" -m pip check
+          "$RUNNER_TEMP/thief-install/bin/thief-agent" --version
+          "$RUNNER_TEMP/thief-install/bin/thief-agent" --help
+          "$RUNNER_TEMP/thief-install/bin/thief-agent" --check-config
+          "$RUNNER_TEMP/thief-install/bin/python" -m thief_agent --version
+          "$RUNNER_TEMP/thief-install/bin/python" - <<'PY'
+          from thief_agent.reader import Reader
+          from thief_agent.runtime import Runtime
+          PY
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: [build, install]
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: python-distributions
+          path: dist
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          cat > release-notes.md <<'EOF'
+          下载 Assets 中的 `.whl` 文件，在 Python 3.10+ 的虚拟环境中执行：
+
+          ```bash
+          python -m pip install ./thief_agent-*.whl
+          thief-agent --book ~/books/novel.txt
+          ```
+
+          Ubuntu / macOS 使用同一个 wheel。需自行安装 tmux 3.2+ 和 Codex CLI；pip 会安装 Python 依赖。完整安装和使用说明见仓库 README。
+
+          wheel 安装已通过 Ubuntu / macOS 检查；macOS 的真实 Codex 交互尚需实机验证。
+          EOF
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" dist/* --clobber
+          else
+            gh release create "$RELEASE_TAG" dist/* --verify-tag --title "$RELEASE_TAG" --notes-file release-notes.md
+          fi
